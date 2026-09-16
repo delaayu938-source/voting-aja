@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VotingAja</title>
+<!-- SDK Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#f4f7fb,#e9eef7);color:#172033}.app{min-height:100vh}
+header{height:70px;background:#172033;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 6%;box-shadow:0 4px 18px #0002}
+.brand{font-size:25px;font-weight:800;letter-spacing:.3px}.nav{display:flex;gap:8px}button{border:0;border-radius:11px;padding:11px 16px;cursor:pointer;font-weight:700;font-size:14px;transition:.2s}button:hover{transform:translateY(-1px);filter:brightness(.97)}
+.nav button{background:#2b3850;color:#fff}.primary{background:#172033;color:#fff}.danger{background:#fee2e2;color:#a11}.muted{background:#e8edf4;color:#172033}
+main{max-width:1120px;margin:auto;padding:45px 20px 30px}.card,.panel,.candidate,.stat{background:#fff;border-radius:20px;box-shadow:0 12px 35px #17203312}
+.card{max-width:500px;margin:25px auto;padding:34px}.card h1{margin:0 0 8px}.sub,.title p,.adminhead p{color:#6b7280}
+form{display:flex;flex-direction:column;gap:10px}label{font-weight:700;margin-top:7px}input,textarea{width:100%;padding:13px 14px;border:1px solid #d4dbe6;border-radius:11px;font-size:15px;outline:0;font-family:inherit}textarea{min-height:75px;resize:vertical}input:focus,textarea:focus{border-color:#172033}.error{padding:11px 13px;background:#fff0f0;color:#a11;border-radius:10px}.success{padding:11px 13px;background:#ecfdf3;color:#167044;border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px}.candidate{padding:24px;text-align:center}.candidate img,.avatar{width:140px;height:140px;border-radius:50%;object-fit:cover;margin:auto;display:block}.avatar{background:#e8edf4;display:flex;align-items:center;justify-content:center;font-size:50px}.candidate h2{margin:16px 0 7px}.candidate p{color:#667085;min-height:45px;line-height:1.5}.title{margin-bottom:22px}.title h1{margin-bottom:5px}
+.adminhead{display:flex;justify-content:space-between;align-items:center;gap:15px}.adminhead h1{margin-bottom:5px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:25px 0}.stat{padding:20px}.stat b{display:block;font-size:29px}.stat span{color:#6b7280;font-size:14px}
+.adminGrid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.panel{padding:22px}.panel h2{margin-top:0}.row{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid #edf0f4}.row-main{flex:1}.row small{display:block;color:#778198;margin-top:4px}.mini{border-top:1px solid #edf0f4;margin-top:15px;padding-top:18px}.status-used{color:#15803d;font-weight:700}.status-free{color:#b45309;font-weight:700}.result{margin:14px 0}.resulttop{display:flex;justify-content:space-between;margin-bottom:6px}.bar{height:11px;background:#e8edf4;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#172033;border-radius:99px}
+.notice{padding:13px 15px;background:#eef4ff;border-radius:12px;color:#31446a;margin-bottom:15px}footer{text-align:center;color:#8993a6;padding:25px}
+.hidden{display:none!important}.actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:720px){header{padding:0 18px}.stats{grid-template-columns:1fr 1fr}.adminGrid{grid-template-columns:1fr}.adminhead{align-items:flex-start}.brand{font-size:21px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div class="brand">VotingAja</div><div class="nav"><button id="homeBtn" class="hidden">Beranda</button><button id="adminBtn">Admin</button></div></header>
+<main id="app"></main>
+<footer>VotingAja • Sistem pemilihan sederhana</footer>
+</div>
+<script>
+"use strict";
+
+// --- KONFIGURASI SUPABASE ---
+const SUPABASE_URL = "https://poeqfjmfdbpklcfslytu.supabase.co";
+const SUPABASE_KEY = "sb_publishable_rl5iv9YSvQSUUk9hIJVxbQ_7JIqHVsj"; // Ganti dengan Publishable Key Supabase kamu
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ADMIN_USER="aurabri", ADMIN_PASS="lakasingruh";
+let candidates = [];
+let nisList = [];
+let page = "home", currentNis = null;
+
+// Mengambil data awal dari Supabase
+async function fetchSupabaseData() {
+  const { data: cData } = await _supabase.from('candidates').select('*').order('id', { ascending: true });
+  const { data: nData } = await _supabase.from('nis_list').select('*');
+  if(cData) candidates = cData;
+  if(nData) nisList = nData;
+  render();
+}
+
+function setPage(p){page=p;render()}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+function totalVotes(){return candidates.reduce((a,c)=>a+(Number(c.vote_count)||0),0)}
+function flash(type,text){return `<div class="${type}">${esc(text)}</div>`}
+
+function render(){
+ document.getElementById("homeBtn").classList.toggle("hidden",page==="home");
+ document.getElementById("app").innerHTML =
+ page==="home"?homeView():
+ page==="vote"?voteView():
+ page==="adminLogin"?adminLoginView():
+ adminView();
+ bind();
+}
+
+function homeView(){return `<section class="card"><h1>Login Pemilih</h1><p class="sub">Masukkan NIS untuk mengikuti pemilihan.</p><form id="nisForm"><label>NIS</label><input id="nis" placeholder="Masukkan NIS" autocomplete="off" autofocus><div id="msg"></div><button class="primary">Lanjut Memilih</button></form></section>`}
+function voteView(){return `<section><div class="title"><h1>Pilih Kandidat</h1><p>Login sebagai NIS ${esc(currentNis)}</p></div>${candidates.length?`<div class="grid">${candidates.map(c=>`<article class="candidate">${c.photo_url?`<img src="${esc(c.photo_url)}" alt="">`:`<div class="avatar">👤</div>`}<h2>${esc(c.name)}</h2><p>${esc(c.vision||"")}</p><button class="primary" data-vote="${c.id}">Pilih Kandidat</button></article>`).join("")}</div>`:`<div class="card"><h2>Belum ada kandidat</h2></div>`}</section>`}
+function adminLoginView(){return `<section class="card"><h1>Login Admin</h1><p class="sub">Masuk ke panel pengelolaan voting.</p><form id="adminForm"><label>Username</label><input id="au" autocomplete="username" placeholder="Username"><label>Password</label><input id="ap" type="password" autocomplete="current-password" placeholder="Password"><div id="amsg"></div><button class="primary">Masuk</button></form></section>`}
+
+function adminView(){
+ const voted=nisList.filter(x=>x.used).length, total=totalVotes(), max=Math.max(1,...candidates.map(c=>Number(c.vote_count)||0));
+ return `<section>
+ <div class="adminhead"><div><h1>Dashboard Admin</h1><p>Kelola kandidat, NIS, dan hasil voting.</p></div><button id="logout" class="muted">Keluar</button></div>
+ <div class="stats"><div class="stat"><b>${nisList.length}</b><span>Total NIS</span></div><div class="stat"><b>${voted}</b><span>Sudah Memilih</span></div><div class="stat"><b>${nisList.length-voted}</b><span>Belum Memilih</span></div><div class="stat"><b>${total}</b><span>Total Suara</span></div></div>
+ <div class="adminGrid">
+ <div class="panel"><h2>Kandidat</h2>${candidates.map(c=>`<div class="row"><div class="row-main"><b>${esc(c.name)}</b><small>${esc(c.vision||"")}</small></div><span>${Number(c.vote_count)||0} suara</span><button class="danger" data-del-c="${c.id}">Hapus</button></div>`).join("")}
+ <form id="candidateForm" class="mini"><h3>Tambah Kandidat</h3><input id="cn" placeholder="Nama kandidat" required><textarea id="cv" placeholder="Visi & misi"></textarea><input id="cp" placeholder="URL foto (opsional)"><button class="primary">Tambah Kandidat</button></form>
+ </div>
+ <div class="panel"><h2>Daftar NIS</h2><form id="nisAddForm" class="mini"><h3>Tambah NIS</h3><input id="newnis" placeholder="Pisahkan dengan spasi/koma"><button class="primary">Tambah NIS</button></form>
+ ${nisList.map(n=>`<div class="row"><div class="row-main"><b>${esc(n.nis_number)}</b></div><span class="${n.used?"status-used":"status-free"}">${n.used?"Sudah memilih":"Belum memilih"}</span><button class="danger" data-del-n="${esc(n.nis_number)}">Hapus</button></div>`).join("")}</div>
+ </div>
+ <div class="panel" style="margin-top:20px"><h2>Hasil Voting</h2>${candidates.length?candidates.map(c=>{let v=Number(c.vote_count)||0;return `<div class="result"><div class="resulttop"><b>${esc(c.name)}</b><span>${v} suara</span></div><div class="bar"><i style="width:${(v/max)*100}%"></i></div></div>`}).join(""):"Belum ada kandidat."}
+ <div class="actions" style="margin-top:22px"><button id="resetVotes" class="muted">Reset status pemilih & suara</button><button id="resetAll" class="danger">Reset semua data</button></div></div>
+ </section>`
+}
+
+function bind(){
+ document.getElementById("homeBtn").onclick=()=>setPage("home");
+ document.getElementById("adminBtn").onclick=()=>setPage(page==="admin"?"adminLogin":"adminLogin");
+ 
+ const nf=document.getElementById("nisForm"); 
+ if(nf) nf.onsubmit=async e=>{
+   e.preventDefault();
+   const n=document.getElementById("nis").value.trim();
+   const { data: x } = await _supabase.from('nis_list').select('*').eq('nis_number', n).single();
+   const m=document.getElementById("msg");
+   if(!x){m.innerHTML=flash("error","NIS tidak terdaftar.");return}
+   if(x.used){m.innerHTML=flash("error","NIS ini sudah digunakan untuk memilih.");return}
+   currentNis=n;
+   setPage("vote");
+ };
+
+ document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=async ()=>{
+   const id=Number(b.dataset.vote);
+   const c=candidates.find(x=>x.id===id);
+   if(!c||!currentNis)return;
+   if(!confirm("Yakin memilih "+c.name+"? Pilihan tidak dapat dibatalkan."))return;
+   
+   // Simpan Suara ke Supabase
+   await _supabase.from('candidates').update({ vote_count: (Number(c.vote_count)||0)+1 }).eq('id', id);
+   await _supabase.from('nis_list').update({ used: true }).eq('nis_number', currentNis);
+   
+   currentNis=null;
+   alert("Voting berhasil disimpan.");
+   await fetchSupabaseData();
+   setPage("home");
+ });
+
+ const af=document.getElementById("adminForm");if(af)af.onsubmit=e=>{e.preventDefault();if(document.getElementById("au").value===ADMIN_USER&&document.getElementById("ap").value===ADMIN_PASS)setPage("admin");else document.getElementById("amsg").innerHTML=flash("error","Username atau password admin salah.")};
+ 
+ const cf=document.getElementById("candidateForm");if(cf)cf.onsubmit=async e=>{
+   e.preventDefault();
+   const name=document.getElementById("cn").value.trim();
+   if(!name)return;
+   await _supabase.from('candidates').insert([{name, vision:document.getElementById("cv").value.trim(), photo_url:document.getElementById("cp").value.trim(), vote_count:0}]);
+   await fetchSupabaseData();
+ };
+
+ const naf=document.getElementById("nisAddForm");if(naf)naf.onsubmit=async e=>{
+   e.preventDefault();
+   const vals=document.getElementById("newnis").value.split(/[\s,;]+/).map(x=>x.trim()).filter(Boolean);
+   const newRows = vals.map(v => ({ nis_number: v, used: false }));
+   await _supabase.from('nis_list').insert(newRows);
+   await fetchSupabaseData();
+ };
+
+ document.querySelectorAll("[data-del-c]").forEach(b=>b.onclick=async ()=>{
+   const id=Number(b.dataset.delC);
+   if(confirm("Hapus kandidat ini?")){
+     await _supabase.from('candidates').delete().eq('id', id);
+     await fetchSupabaseData();
+   }
+ });
+
+ document.querySelectorAll("[data-del-n]").forEach(b=>b.onclick=async ()=>{
+   const n=b.dataset.delN;
+   if(confirm("Hapus NIS "+n+"?")){
+     await _supabase.from('nis_list').delete().eq('nis_number', n);
+     await fetchSupabaseData();
+   }
+ });
+
+ const rv=document.getElementById("resetVotes");if(rv)rv.onclick=async ()=>{
+   if(confirm("Reset semua suara dan status pemilih?")){
+     await _supabase.from('candidates').update({ vote_count: 0 }).neq('id', 0);
+     await _supabase.from('nis_list').update({ used: false }).neq('nis_number', '');
+     await fetchSupabaseData();
+   }
+ };
+
+ const lo=document.getElementById("logout");if(lo)lo.onclick=()=>setPage("home");
+}
+
+// Jalankan saat pertama kali dibuka
+fetchSupabaseData();
+</script>
+</body>
+</html>
